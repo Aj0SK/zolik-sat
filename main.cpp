@@ -10,13 +10,23 @@
 #include "card.h"
 #include "card_set.h"
 #include "literal.h"
+#include "togasat.hpp"
 
 struct ValidCombination {
   enum class Type { run, triplet };
-
   auto operator<=>(const ValidCombination&) const = default;
 
- public:
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const ValidCombination& c) {
+    std::string type_str = (c.t == Type::run) ? "run" : "triplet";
+    out << type_str << " ";
+    out << c.cards[0];
+    for (size_t i = 1; i < c.cards.size(); ++i) {
+      out << " " << c.cards[i];
+    }
+    return out;
+  }
+
   Type t;
   std::vector<Card> cards;
 };
@@ -162,62 +172,81 @@ std::vector<ValidCombination> generate_combinations(const CardSet& cards) {
         generate_combinations_for_card(cards, c);
     all_comb.insert(all_comb.end(), comb.begin(), comb.end());
   }
-
   std::set<ValidCombination> dedup(all_comb.begin(), all_comb.end());
-  all_comb.assign(dedup.begin(), dedup.end());
-  return all_comb;
+  return std::vector<ValidCombination>{dedup.begin(), dedup.end()};
 }
 
 int main() {
-  CardSet cards;
-  /*for (Card c; std::cin >> c.type >> c.col >> c.val; cards.Add(c))
-    ;*/
+  CardSet cards_set;
+  for (Card c; std::cin >> c; cards_set.Add(c))
+    ;
 
-  for (bool type : {true, false})
+  /*for (bool type : {true, false})
     for (int color = 0; color < 4; ++color)
       for (int val = 0; val < 13; ++val) {
-        cards.Add(Card{.type = type, .col = color, .val = val});
-      }
+        cards_set.Add(Card{.type = type, .col = color, .val = val});
+      }*/
 
-  const std::vector<ValidCombination> map = generate_combinations(cards);
+  std::cout << "Cards:";
+  for (Card c : cards_set) std::cout << " " << c;
+  std::cout << "\n";
 
-  /*
-  std::map<Card, std::vector<Literal<bool, int, int, int>>> card_to_clausules;
-  for (const auto& [card, combs] : map) {
-    for (const ValidCombination& comb : combs) {
+  std::vector<ValidCombination> combs = generate_combinations(cards_set);
+
+  std::vector<Card> sorted_cards(cards_set.begin(), cards_set.end());
+  std::map<Card, std::vector<int64_t>> card_to_combs;
+  for (int64_t i = 0; i < combs.size(); ++i) {
+    // std::cout << "Combination is " << combs[i] << "\n";
+    for (Card c : combs[i].cards) {
+      card_to_combs[c].push_back(i);
     }
+  }
+
+  auto comb_to_literal_id = [](int64_t idx) -> int64_t { return idx + 1; };
+
+  // A => B         <=>       !A or B
+  std::vector<std::vector<int>> clauses;
+  for (const auto& [card, comb_idxs] : card_to_combs) {
+    clauses.push_back({});
+    for (int64_t idx : comb_idxs) {
+      clauses.back().push_back(comb_to_literal_id(idx));
+    }
+    for (int64_t idx1 : comb_idxs) {
+      for (int64_t idx2 : comb_idxs) {
+        if (idx1 == idx2) continue;
+        clauses.push_back(
+            {(int)-comb_to_literal_id(idx1), (int)-comb_to_literal_id(idx2)});
+      }
+    }
+  }
+
+  togasat::Solver solver;
+  for (std::vector<int> c : clauses) {
+    solver.addClause(c);
+  }
+
+  togasat::lbool status = solver.solve();
+
+  if (status != 0) {
+    std::cout << "Unsolvable!\n";
+    return 0;
+  }
+
+  std::vector<int> answer = solver.getAnswer();
+  for (int idx : answer) {
+    if (idx < 0) continue;
+    std::cout << "Combination: " << combs[idx - 1] << "\n";
+  }
+
+  /*std::cout << status << "\n";
+  std::cout << "p cnf " << combs.size() << " " << clauses.size() << "\n";
+  for (std::vector<int64_t> c : clauses) {
+    std::cout << c[0];
+    for (size_t i = 1; i < c.size(); ++i) {
+      std::cout << " " << c[i];
+    }
+    std::cout << " 0\n";
   }*/
 
-  for (const ValidCombination& comb : map) {
-    for (Card c : comb.cards) {
-      std::cout << c << " ";
-    }
-    std::cout << "\n";
-  }
-
-  // std::unordered_set<Literal<int, std::string>, LiteralHasher> literals;
-  // Literal<int, std::string, float, bool> l1(10, "oko", 12.3, true);
-  // std::cout << l1.ToString() << "\n";
-  // Literal<int, std::string> l2(1, "b");
   return 0;
 }
-
-/*
-class Clause {
- public:
-  void Negate() {
-    for (LiteralInfo& li : clauses_) {
-      li.sign = !li.sign;
-    }
-  }
-
- private:
-  struct LiteralInfo {
-    bool sign;
-    int id;
-  };
-
- private:
-  std::vector<LiteralInfo> clauses_;
-};
-*/

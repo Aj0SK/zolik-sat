@@ -3,7 +3,9 @@
 #include <tuple>
 #include <utility>
 
-template <typename... T>
+class Literal {};
+
+/*template <typename... T>
 class Literal {
  public:
   template <typename... Args>
@@ -52,11 +54,11 @@ class Literal {
 
  private:
   std::tuple<T...> name_;
-};
+};*/
 
 // Credit to:
 // https://www.linkedin.com/pulse/generic-tuple-hashing-modern-c-alex-dathskovsky/
-struct LiteralHasher {
+/*struct LiteralHasher {
   static constexpr auto hasher = [](size_t hash, auto &&...values) -> size_t {
     auto combiner = [&hash](auto &&val) {
       hash ^= std::hash<std::decay_t<decltype(val)>>{}(val) + 0Xeeffddcc +
@@ -73,4 +75,4 @@ struct LiteralHasher {
     std::apply(hasher, std::tuple_cat(std::tuple(0), t.GetName()));
     return hash;
   }
-};
+};*/

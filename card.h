@@ -27,6 +27,15 @@ struct Card {
     out << kColorNames[c.type][c.col] << ":" << c.val_str();
     return out;
   }
+  friend std::istream &operator>>(std::istream &is, Card &c) {
+    is >> c.type >> c.col;
+    std::string val;
+    is >> val;
+    c.val =
+        std::distance(kValueNames.begin(),
+                      std::find(kValueNames.begin(), kValueNames.end(), val));
+    return is;
+  }
 };
 
 struct CardHasher {
